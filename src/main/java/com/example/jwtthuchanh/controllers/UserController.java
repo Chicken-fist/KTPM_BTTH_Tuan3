@@ -1,76 +1,62 @@
 package com.example.jwtthuchanh.controllers;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.jwtthuchanh.common.ERole;
-import com.example.jwtthuchanh.common.JwtUntils;
-import com.example.jwtthuchanh.dto.JwtResponse;
-import com.example.jwtthuchanh.dto.LoginRequest;
-import com.example.jwtthuchanh.dto.MessageResponse;
-import com.example.jwtthuchanh.dto.SignupRequest;
-import com.example.jwtthuchanh.entity.Role;
+import com.example.jwtthuchanh.dto.UserDto;
 import com.example.jwtthuchanh.entity.User;
-import com.example.jwtthuchanh.repository.RoleRepository;
 import com.example.jwtthuchanh.repository.UserRepository;
-import com.example.jwtthuchanh.service.UserDetailsImpl;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(maxAge = 3000)
 @RestController
-@RequestMapping("/api/auth")
-public class AuthController {
-
-	@Autowired
-	AuthenticationManager authenticationManager;
-
+@RequestMapping("/api")
+public class UserController {
+	
 	@Autowired
 	UserRepository userRepository;
 
-	@Autowired
-	RoleRepository roleRepository;
-
-	@Autowired
-	PasswordEncoder encoder;
-
-	@Autowired
-	JwtUntils jwtUntils;
-
-	@PostMapping("/login")
-	public ResponseEntity<?> authenticateUser(@Validated @RequestBody LoginRequest loginRequest) {
-
-		Authentication authentication = authenticationManager.authenticate(
-				new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-		SecurityContextHolder.getContext().setAuthentication(authentication);
-		String jwt = jwtUntils.generateJWTToken(authentication);
-
-		UserDetailsImpl userDetailsImpl = (UserDetailsImpl) authentication.getPrincipal();
-
-		List<String> roles = userDetailsImpl.getAuthorities().stream().map(item -> item.getAuthority())
-				.collect(Collectors.toList());
-		
-
-		return ResponseEntity.ok(new JwtResponse(jwt, userDetailsImpl.getId(), userDetailsImpl.getUsername(),
-				userDetailsImpl.getEmail(), roles));
+	@GetMapping("/get-users")
+	@PreAuthorize("hasRole('USER') or hasRole('ADMIN')") 
+	public List<User> findAll(){
+		return userRepository.findAll();
 	}
-
-	@PostMapping("/register")
+	
+	@PutMapping("/admin/update-users/{id}")
+	@PreAuthorize("hasRole('ADMIN')") 
+	public ResponseEntity<?> update(@PathVariable("id") Long id, @Validated @RequestBody UserDto userDto){
+		
+		User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Error: user dont exists"));
+		
+		user.setUserName(userDto.getUsername());
+		user.setEmail(userDto.getEmail());
+		user.setPassword(userDto.getPassword());
+		
+		userRepository.save(user);
+		return ResponseEntity.ok().body(user);
+	}
+	
+	@DeleteMapping("/admin/delete-user/{id}")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<?> delete(@PathVariable("id") Long id){
+		User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Not found user id: " + id));
+		userRepository.deleteById(user.getId());
+		return ResponseEntity.ok().body("Success");
+	}
+	
+	@PostMapping("/admin/add-users")
 	public ResponseEntity<?> registerUser(@Validated @RequestBody SignupRequest signupRequest) {
 		if (userRepository.existsByUserName(signupRequest.getUsername())) {
 			return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
@@ -83,7 +69,6 @@ public class AuthController {
 				encoder.encode(signupRequest.getPassword()));
 
 		Set<String> strRoles = signupRequest.getRole();
-//		strRoles.forEach(str -> System.out.println(str));
 		Set<Role> roles = new HashSet<Role>();
 
 		if (strRoles == null) {
@@ -118,8 +103,6 @@ public class AuthController {
 		user.setRoles(roles);
 		userRepository.save(user);
 		
-		return ResponseEntity.ok(new MessageResponse("User resgitered success"));
-
-	}
-
+		return ResponseEntity.ok(new MessageResponse("success"));
+	
 }
