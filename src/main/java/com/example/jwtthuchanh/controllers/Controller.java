@@ -1,10 +1,13 @@
 package com.example.jwtthuchanh.controllers;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,17 +19,28 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.jwtthuchanh.common.ERole;
+import com.example.jwtthuchanh.dto.MessageResponse;
+import com.example.jwtthuchanh.dto.SignupRequest;
 import com.example.jwtthuchanh.dto.UserDto;
+import com.example.jwtthuchanh.entity.Role;
 import com.example.jwtthuchanh.entity.User;
+import com.example.jwtthuchanh.repository.RoleRepository;
 import com.example.jwtthuchanh.repository.UserRepository;
 
 @CrossOrigin(maxAge = 3000)
 @RestController
 @RequestMapping("/api")
-public class UserController {
+public class Controller {
 	
 	@Autowired
 	UserRepository userRepository;
+	
+	@Autowired
+	RoleRepository roleRepository;
+	
+	@Autowired
+	PasswordEncoder encoder;
 
 	@GetMapping("/get-users")
 	@PreAuthorize("hasRole('USER') or hasRole('ADMIN')") 
@@ -42,13 +56,13 @@ public class UserController {
 		
 		user.setUserName(userDto.getUsername());
 		user.setEmail(userDto.getEmail());
-		user.setPassword(userDto.getPassword());
+		user.setPassword(encoder.encode(userDto.getPassword()));
 		
 		userRepository.save(user);
 		return ResponseEntity.ok().body(user);
 	}
 	
-	@DeleteMapping("/admin/delete-user/{id}")
+	@DeleteMapping("/admin/delete-users/{id}")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<?> delete(@PathVariable("id") Long id){
 		User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Not found user id: " + id));
@@ -104,5 +118,6 @@ public class UserController {
 		userRepository.save(user);
 		
 		return ResponseEntity.ok(new MessageResponse("success"));
+	}
 	
 }
